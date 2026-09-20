@@ -1,0 +1,124 @@
+:root {
+  --bg-0: #06120c;
+  --bg-1: #0b1f17;
+  --felt-1: #0f3d28;
+  --felt-2: #0a2a1b;
+  --felt-edge: #1c5c3a;
+  --gold: #d4af6a;
+  --gold-bright: #f0cf8e;
+  --ink: #f4ecd8;
+  --ink-dim: #c9c0a8;
+  --card-white: #fbf8f1;
+  --card-black: #1a1a1a;
+  --card-red: #a4293d;
+  --danger: #c25450;
+  --success: #4f9b6e;
+  --panel-bg: rgba(10, 22, 16, 0.82);
+  --panel-border: rgba(212, 175, 106, 0.25);
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 3px 8px rgba(0, 0, 0, 0.45);
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at top, var(--bg-1), var(--bg-0) 70%);
+  color: var(--ink);
+  font-family: 'Segoe UI', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--gold);
+  color: #1a1a1a;
+}
+
+.scrollthin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollthin::-webkit-scrollbar-thumb {
+  background: var(--panel-border);
+  border-radius: 4px;
+}
+
+.gold-text {
+  color: var(--gold-bright);
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, rgba(212, 175, 106, 0.14), rgba(212, 175, 106, 0.04));
+  color: var(--ink);
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.2s ease;
+}
+.btn:hover {
+  background: linear-gradient(180deg, rgba(212, 175, 106, 0.26), rgba(212, 175, 106, 0.08));
+  box-shadow: 0 0 0 1px var(--gold) inset;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  color: #201607;
+  border: none;
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 4px 14px rgba(212, 175, 106, 0.35);
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+}
+
+input[type='text'],
+input[type='number'],
+select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  color: var(--ink);
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  outline: none;
+}
+input[type='text']:focus,
+input[type='number']:focus,
+select:focus {
+  border-color: var(--gold);
+}
