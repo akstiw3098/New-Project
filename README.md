@@ -1,6 +1,6 @@
-# Seep — classy multiplayer card table
+# Seepify — classy multiplayer Seep, online
 
-A web-based implementation of **Seep** (100-point North Indian / Baazi rules, as
+Seepify is a web-based implementation of **Seep** (100-point North Indian / Baazi rules, as
 documented on [pagat.com](https://www.pagat.com/fishing/seep.html)): fixed 2v2
 partnerships, house building/cementing/breaking, sweeps, and Baazi scoring.
 

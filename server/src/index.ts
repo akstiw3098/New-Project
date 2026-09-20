@@ -22,5 +22,5 @@ registerSocketHandlers(io);
 setInterval(() => roomManager.cleanupStale(), 1000 * 60 * 30);
 
 server.listen(PORT, () => {
-  console.log(`Seep server listening on :${PORT}`);
+  console.log(`Seepify server listening on :${PORT}`);
 });

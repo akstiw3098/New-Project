@@ -40,7 +40,7 @@ export const useSettings = create<SettingsState>()(
       setCardSkin: (v) => set({ cardSkin: v }),
       setSoundOn: (v) => set({ soundOn: v }),
     }),
-    { name: 'seep-settings' }
+    { name: 'seepify-settings' }
   )
 );
 

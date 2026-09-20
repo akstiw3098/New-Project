@@ -70,7 +70,7 @@ export default function Home() {
         <div style={{ textAlign: 'center', marginBottom: 22 }}>
           <div style={{ fontSize: 38, marginBottom: 4 }}>&#9824;&#65039;</div>
           <h1 style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: 30 }} className="gold-text">
-            Seep
+            Seepify
           </h1>
           <div style={{ color: 'var(--ink-dim)', fontSize: 13, marginTop: 4 }}>Classy multiplayer Seep &mdash; 100-point Baazi rules</div>
         </div>
