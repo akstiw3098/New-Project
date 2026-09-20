@@ -12,9 +12,11 @@ interface GameStoreState {
   state: GameState | null;
   error: string | null;
   busy: boolean;
+  resuming: boolean;
   setError: (e: string | null) => void;
   createRoom: (name: string, deviceId: string, targetBaaziMargin: number) => Promise<void>;
   joinRoom: (roomId: string, name: string, deviceId: string) => Promise<void>;
+  resumeSession: () => Promise<void>;
   setSeat: (seat: number, isBot: boolean, difficulty?: Difficulty) => void;
   start: () => void;
   bid: (value: number) => Promise<void>;
@@ -39,7 +41,16 @@ export const useGameStore = create<GameStoreState>((set, get) => {
     state: null,
     error: null,
     busy: false,
+    resuming: true,
     setError: (e) => set({ error: e }),
+
+    resumeSession: async () => {
+      try {
+        await controller.tryResume();
+      } finally {
+        set({ resuming: false });
+      }
+    },
 
     createRoom: async (name, deviceId, targetBaaziMargin) => {
       set({ busy: true, error: null });

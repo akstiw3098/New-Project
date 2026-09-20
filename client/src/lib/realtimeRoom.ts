@@ -9,14 +9,82 @@ import { ensureProfile, persistFinishedGame } from './persistence';
 
 const roomCode = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 5);
 
+// Slow enough that each play's log entry / animation is readable before the
+// next one lands, especially with 3 bots at the table.
 const BOT_MOVE_DELAY: Record<Difficulty, [number, number]> = {
-  low: [400, 900],
-  medium: [600, 1300],
-  high: [800, 1800],
+  low: [1400, 2200],
+  medium: [1800, 2800],
+  high: [2200, 3400],
 };
 
 function randDelay([min, max]: [number, number]) {
   return min + Math.random() * (max - min);
+}
+
+// ---------- Session persistence (survives a page refresh in this browser) ----------
+
+const SESSION_KEY = 'seepify:session';
+
+interface PersistedSession {
+  roomId: string;
+  seat: number;
+  isHost: boolean;
+  deviceId: string;
+  name: string;
+}
+
+function saveSession(session: PersistedSession) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // localStorage unavailable (private mode etc) - rejoin-on-refresh just won't work
+  }
+}
+
+function loadSession(): PersistedSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as PersistedSession) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function hostStateKey(roomId: string) {
+  return `seepify:hostState:${roomId}`;
+}
+
+function saveHostState(roomId: string, state: FullGameState) {
+  try {
+    localStorage.setItem(hostStateKey(roomId), JSON.stringify(state));
+  } catch {
+    // storage full or unavailable - host refresh just won't be able to resume
+  }
+}
+
+function loadHostState(roomId: string): FullGameState | null {
+  try {
+    const raw = localStorage.getItem(hostStateKey(roomId));
+    return raw ? (JSON.parse(raw) as FullGameState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearHostState(roomId: string) {
+  try {
+    localStorage.removeItem(hostStateKey(roomId));
+  } catch {
+    // ignore
+  }
 }
 
 function seatView(state: FullGameState, viewerSeat: number | null): PublicGameState {
@@ -33,8 +101,9 @@ function seatView(state: FullGameState, viewerSeat: number | null): PublicGameSt
 interface ActionMsg {
   requestId: string;
   seat: number;
-  kind: 'bid' | 'play' | 'continueDeal' | 'setSeat' | 'start';
+  kind: 'bid' | 'play' | 'continueDeal' | 'setSeat' | 'start' | 'resync';
   payload?: any;
+  deviceId?: string;
 }
 
 interface AckMsg {
@@ -147,6 +216,7 @@ export class RoomController {
     this.state = state;
 
     await this.setupHostChannels(id);
+    saveSession({ roomId: id, seat: 0, isHost: true, deviceId, name: state.seats[0].name });
     this.pushStateToAll();
   }
 
@@ -253,6 +323,17 @@ export class RoomController {
 
   private handleAction(msg: ActionMsg) {
     if (!this.isHost || !this.state) return;
+    if (msg.kind === 'resync') {
+      const seatObj = this.state.seats[msg.seat];
+      if (!seatObj || seatObj.isBot || seatObj.playerId !== msg.deviceId) {
+        this.ack(null, msg, false, 'This seat is no longer yours (it may have been replaced by a bot).');
+        return;
+      }
+      seatObj.connected = true;
+      this.ack(null, msg, true);
+      this.pushStateToAll();
+      return;
+    }
     try {
       this.applyAction(msg.seat, msg.kind, msg.payload);
       this.ack(null, msg, true);
@@ -365,6 +446,7 @@ export class RoomController {
 
   private pushStateToAll() {
     if (!this.state) return;
+    if (this.isHost && this.roomId) saveHostState(this.roomId, this.state);
     this.state.seats.forEach((seat) => {
       if (!seat.playerId || seat.isBot) return;
       const view = seatView(this.state!, seat.index);
@@ -410,6 +492,13 @@ export class RoomController {
     this.mySeat = seat;
     await lobby.unsubscribe();
 
+    await this.setupGuestChannels(roomId, seat);
+    saveSession({ roomId, seat, isHost: false, deviceId, name });
+  }
+
+  private async setupGuestChannels(roomId: string, seat: number) {
+    const sb = this.requireSupabase();
+
     this.actionsChannel = sb.channel(`room-${roomId}-actions`, { config: { broadcast: { self: false }, presence: { key: `seat-${seat}` } } });
     this.actionsChannel.on('broadcast', { event: 'action-ack' }, ({ payload }) => this.resolveAck(payload as AckMsg));
     await this.subscribeAndWait(this.actionsChannel);
@@ -418,6 +507,61 @@ export class RoomController {
     this.myPrivateChannel = sb.channel(`room-${roomId}-seat-${seat}`, { config: { broadcast: { self: false } } });
     this.myPrivateChannel.on('broadcast', { event: 'state' }, ({ payload }) => this.emitState(payload as PublicGameState));
     await this.subscribeAndWait(this.myPrivateChannel);
+  }
+
+  /** Re-establish a guest's connection after a page refresh, using a previously assigned seat. */
+  async rejoinAsGuest(roomId: string, seat: number, deviceId: string, name: string) {
+    this.roomId = roomId;
+    this.isHost = false;
+    this.deviceId = deviceId;
+    this.mySeat = seat;
+
+    await this.setupGuestChannels(roomId, seat);
+    await this.sendAction('resync');
+    saveSession({ roomId, seat, isHost: false, deviceId, name });
+  }
+
+  /** Re-establish hosting after the host's own tab refreshed, from the locally persisted snapshot. */
+  async resumeHost(roomId: string, deviceId: string) {
+    const state = loadHostState(roomId);
+    if (!state) throw new Error('No saved game found for this room in this browser.');
+
+    this.roomId = roomId;
+    this.isHost = true;
+    this.deviceId = deviceId;
+    this.mySeat = 0;
+    this.state = state;
+
+    await this.setupHostChannels(roomId);
+    saveSession({ roomId, seat: 0, isHost: true, deviceId, name: state.seats[0].name });
+    this.pushStateToAll();
+    this.maybeScheduleBotTurn();
+    this.maybeScheduleDealEnd();
+  }
+
+  /** Called once on app start: silently resumes a previous session if one was saved, else does nothing. */
+  async tryResume(): Promise<boolean> {
+    const session = loadSession();
+    if (!session) return false;
+    const urlRoom = new URLSearchParams(window.location.search).get('room');
+    if (urlRoom && urlRoom.toUpperCase() !== session.roomId.toUpperCase()) {
+      // The link points at a different room than the one saved in this browser - don't
+      // silently resume the old one, let the user join the room they actually opened.
+      return false;
+    }
+    try {
+      if (session.isHost) {
+        await this.resumeHost(session.roomId, session.deviceId);
+      } else {
+        await this.rejoinAsGuest(session.roomId, session.seat, session.deviceId, session.name);
+      }
+      return true;
+    } catch (e) {
+      console.warn('[realtime] could not resume session', e);
+      clearSession();
+      if (session.isHost) clearHostState(session.roomId);
+      return false;
+    }
   }
 
   private resolveAck(ack: AckMsg) {
@@ -460,7 +604,7 @@ export class RoomController {
       this.actionsChannel!.send({
         type: 'broadcast',
         event: 'action',
-        payload: { requestId, seat: this.mySeat!, kind, payload } satisfies ActionMsg,
+        payload: { requestId, seat: this.mySeat!, kind, payload, deviceId: this.deviceId ?? undefined } satisfies ActionMsg,
       });
     });
   }
@@ -490,6 +634,8 @@ export class RoomController {
   }
 
   async leave() {
+    if (this.isHost && this.roomId) clearHostState(this.roomId);
+    clearSession();
     await this.lobbyChannel?.unsubscribe();
     await this.actionsChannel?.unsubscribe();
     await this.myPrivateChannel?.unsubscribe();

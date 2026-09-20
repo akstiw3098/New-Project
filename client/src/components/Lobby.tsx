@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from '../store/game';
 import { Difficulty } from '../game/types';
+import RoomQrCode from './RoomQrCode';
 
 const DIFFICULTIES: Difficulty[] = ['low', 'medium', 'high'];
 
@@ -13,7 +14,9 @@ export default function Lobby() {
   const startAction = useGameStore((s) => s.start);
   const setError = useGameStore((s) => s.setError);
   const error = useGameStore((s) => s.error);
+  const leaveAction = useGameStore((s) => s.leave);
   const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
 
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${state.roomId}`;
 
@@ -58,14 +61,19 @@ export default function Lobby() {
           <span style={{ fontSize: 12, color: 'var(--ink-dim)' }}>Team A: seats 1 &amp; 3 &middot; Team B: seats 2 &amp; 4</span>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, margin: '14px 0 20px' }}>
+        <div style={{ display: 'flex', gap: 8, margin: '14px 0 10px' }}>
           <input type="text" readOnly value={shareUrl} style={{ flex: 1 }} onFocus={(e) => e.currentTarget.select()} />
           <button className="btn" onClick={copyLink}>
             {copied ? 'Copied!' : 'Copy link'}
           </button>
+          <button className="btn" onClick={() => setShowQr((v) => !v)}>
+            {showQr ? 'Hide QR' : 'Show QR'}
+          </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+        <AnimatePresence>{showQr && <RoomQrCode url={shareUrl} />}</AnimatePresence>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16, marginBottom: 20 }}>
           {state.seats.map((s, idx) => (
             <div
               key={idx}
@@ -143,6 +151,16 @@ export default function Lobby() {
         )}
 
         {error && <div style={{ marginTop: 12, color: 'var(--danger)', fontSize: 13, textAlign: 'center' }}>{error}</div>}
+
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
+          <button
+            className="btn"
+            style={{ fontSize: 12, opacity: 0.7 }}
+            onClick={() => leaveAction()}
+          >
+            Leave room
+          </button>
+        </div>
       </motion.div>
     </div>
   );

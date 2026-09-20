@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useSettings, CardSkin, Quality, effectiveQuality } from '../store/settings';
+import { useGameStore } from '../store/game';
 import PlayingCard from './PlayingCard';
 
 const SKINS: { id: CardSkin; label: string }[] = [
@@ -17,6 +18,7 @@ const QUALITIES: { id: Quality; label: string; hint: string }[] = [
 export default function SettingsDrawer({ onClose }: { onClose: () => void }) {
   const { quality, setQuality, cardSkin, setCardSkin, soundOn, setSoundOn } = useSettings();
   const resolvedQuality = effectiveQuality(quality);
+  const leaveAction = useGameStore((s) => s.leave);
 
   return (
     <motion.div
@@ -106,6 +108,14 @@ export default function SettingsDrawer({ onClose }: { onClose: () => void }) {
           Auto quality checks your device's memory, CPU cores, screen size and reduced-motion preference to pick
           smooth animations only where your device can handle them.
         </div>
+
+        <button
+          className="btn"
+          style={{ width: '100%', marginTop: 22, opacity: 0.75 }}
+          onClick={() => leaveAction()}
+        >
+          Leave room
+        </button>
       </motion.div>
     </motion.div>
   );

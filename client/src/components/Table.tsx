@@ -9,6 +9,8 @@ import BidPanel from './BidPanel';
 import ScoreBar from './ScoreBar';
 import ActionPicker from './ActionPicker';
 import SettingsDrawer from './SettingsDrawer';
+import GameLogPanel from './GameLogPanel';
+import TurnBanner from './TurnBanner';
 import { BuildOption, Card, CaptureOption, PlayOption, ThrowOption, scoreValue } from '../game/types';
 
 export default function Table() {
@@ -29,6 +31,7 @@ export default function Table() {
     throwAllowed: boolean;
   } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   const [pendingCardId, setPendingCardId] = useState<string | null>(null);
 
   const isMyBid = state.phase === 'awaiting_bid' && state.bidderSeat === seat;
@@ -103,37 +106,54 @@ export default function Table() {
     >
       <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
         <ScoreBar state={state} mySeat={seat} />
-        <button className="btn" onClick={() => setSettingsOpen(true)}>
-          &#9881;&#65039; Settings
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => setLogOpen(true)}>
+            &#128220; Log
+          </button>
+          <button className="btn" onClick={() => setSettingsOpen(true)}>
+            &#9881;&#65039; Settings
+          </button>
+        </div>
       </div>
+
+      <TurnBanner message={lastLog ?? null} highQuality={highQuality} />
 
       <div style={{ flex: 1, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, padding: '0 20px 12px', position: 'relative' }}>
         <SeatRow seatObj={seatsByPos[2]} state={state} skin={cardSkin} highQuality={highQuality} align="center" label="Partner" />
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <SeatColumn seatObj={seatsByPos[3]} state={state} skin={cardSkin} highQuality={highQuality} label="Left" />
-          <div style={{ flex: 1 }}>
+          <div
+            style={{
+              flex: 1,
+              background: 'rgba(0,0,0,0.18)',
+              border: '1px solid rgba(212,175,106,0.16)',
+              borderRadius: 20,
+              padding: '6px 4px',
+              boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.35)',
+            }}
+          >
             <Floor floor={state.floor} skin={cardSkin} highQuality={highQuality} />
-            {lastLog && (
-              <div style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--ink-dim)', marginTop: 2 }}>{lastLog}</div>
-            )}
           </div>
           <SeatColumn seatObj={seatsByPos[1]} state={state} skin={cardSkin} highQuality={highQuality} label="Right" />
         </div>
 
         <div>
-          <div
-            style={{
-              textAlign: 'center',
-              fontSize: 12,
-              color: isMyTurn ? 'var(--gold-bright)' : 'var(--ink-dim)',
-              marginBottom: 6,
-              minHeight: 16,
-            }}
-          >
-            {isMyTurn ? 'Your turn — tap a card to play' : state.turnSeat !== null ? `${state.seats[state.turnSeat].name}'s turn` : ''}
-          </div>
+          {isMyBid && bidValues && bidValues.length > 0 ? (
+            <BidPanel values={bidValues} onBid={handleBid} />
+          ) : (
+            <div
+              style={{
+                textAlign: 'center',
+                fontSize: 12,
+                color: isMyTurn ? 'var(--gold-bright)' : 'var(--ink-dim)',
+                marginBottom: 6,
+                minHeight: 16,
+              }}
+            >
+              {isMyTurn ? 'Your turn — tap a card to play' : state.turnSeat !== null ? `${state.seats[state.turnSeat].name}'s turn` : ''}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', paddingBottom: 10 }}>
             {myHand
               .slice()
@@ -144,7 +164,7 @@ export default function Table() {
                     card={c}
                     skin={cardSkin}
                     highQuality={highQuality}
-                    width={72}
+                    width={86}
                     onClick={isMyTurn ? () => handleCardClick(c) : undefined}
                     selected={pendingCardId === c.id}
                     dim={!isMyTurn}
@@ -154,8 +174,6 @@ export default function Table() {
           </div>
         </div>
       </div>
-
-      {isMyBid && bidValues && bidValues.length > 0 && <BidPanel values={bidValues} onBid={handleBid} />}
 
       <AnimatePresence>
         {picker && (
@@ -186,6 +204,7 @@ export default function Table() {
       )}
 
       {settingsOpen && <SettingsDrawer onClose={() => setSettingsOpen(false)} />}
+      <AnimatePresence>{logOpen && <GameLogPanel log={state.log} onClose={() => setLogOpen(false)} />}</AnimatePresence>
     </div>
   );
 }
@@ -197,8 +216,8 @@ function SeatRow({ seatObj, state, skin, highQuality, align, label }: any) {
       <SeatBadge seatObj={seatObj} state={state} label={label} />
       <div style={{ display: 'flex', gap: 4 }}>
         {Array.from({ length: Math.min(seatObj.handCount, 13) }).map((_, i) => (
-          <div key={i} style={{ marginLeft: i === 0 ? 0 : -32 }}>
-            <PlayingCard faceDown skin={skin} highQuality={highQuality} width={40} />
+          <div key={i} style={{ marginLeft: i === 0 ? 0 : -34 }}>
+            <PlayingCard faceDown skin={skin} highQuality={highQuality} width={46} />
           </div>
         ))}
       </div>
@@ -213,8 +232,8 @@ function SeatColumn({ seatObj, state, skin, highQuality, label }: any) {
       <SeatBadge seatObj={seatObj} state={state} label={label} />
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {Array.from({ length: Math.min(seatObj.handCount, 13) }).map((_, i) => (
-          <div key={i} style={{ marginTop: i === 0 ? 0 : -60 }}>
-            <PlayingCard faceDown skin={skin} highQuality={highQuality} width={36} />
+          <div key={i} style={{ marginTop: i === 0 ? 0 : -66 }}>
+            <PlayingCard faceDown skin={skin} highQuality={highQuality} width={42} />
           </div>
         ))}
       </div>

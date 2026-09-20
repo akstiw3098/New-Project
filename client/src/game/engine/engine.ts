@@ -1,5 +1,5 @@
 import { freshDeck, shuffle } from './deck';
-import { findBuildOptions, findCaptureOptions, hasAnyCapture, nextHouseId } from './rules';
+import { findBuildOptions, findCaptureOptions, nextHouseId } from './rules';
 import {
   BuildOption,
   Card,
@@ -149,8 +149,11 @@ export function optionsForCard(state: GameState, seat: number, cardId: string): 
   if (!card) throw new Error('Card not in hand');
   const captures = findCaptureOptions(state.floor, card.rank);
   const builds = findBuildOptions(state.floor, card.rank, seat, (v) => ownsHouseValue(state, seat, v));
-  const forced = hasAnyCapture(state.floor, card.rank);
-  const throwAllowed = !forced; // if capture is available, must build or capture, not throw
+  // House rule (deviates from the official pagat.com ruleset by request):
+  // capturing is always optional. A player may throw a card as loose even
+  // when it could capture something, choosing to leave those cards on the
+  // floor instead.
+  const throwAllowed = true;
   return { cardId, captures, builds, throwAllowed };
 }
 
@@ -204,18 +207,12 @@ export function applyCapture(state: GameState, seat: number, cardId: string, opt
 
   const sweep = totalFloorCount(state.floor) === 0;
   if (sweep) {
-    const isFirstPlay = !state.firstPlayDone;
-    const isLastPlay = state.turnsPlayed === 47; // 0-indexed; this play will be the 48th
-    let bonus = 50;
-    if (isFirstPlay) bonus = 25;
-    if (isLastPlay) bonus = 0;
-    if (bonus > 0) {
-      team.sweepCards.push(played);
-      team.sweepBonuses.push(bonus);
-      log(state, `Seat ${seat} SWEEPS the floor! Bonus ${bonus}`);
-    } else {
-      log(state, `Seat ${seat} sweeps the floor (no bonus - last play).`);
-    }
+    // House rule (deviates from pagat.com's 50/25/0 by request): every
+    // sweep is worth a flat 25 points, regardless of when it happens.
+    const bonus = 25;
+    team.sweepCards.push(played);
+    team.sweepBonuses.push(bonus);
+    log(state, `Seat ${seat} SWEEPS the floor! Bonus ${bonus}`);
   }
 
   log(state, `Seat ${seat} plays ${played.rank} and captures ${captured.length - 1} card(s).`);
@@ -305,11 +302,15 @@ export function advanceTurn(state: GameState) {
 }
 
 function finishDeal(state: GameState) {
-  // remaining loose cards go to last capturing team
-  if (state.floor.loose.length > 0 && state.lastCapturingTeam !== null) {
-    state.teams[state.lastCapturingTeam].capturedPiles.push(...state.floor.loose);
-    state.floor.loose = [];
+  // Remaining floor cards (loose, and - since capture is optional as a house
+  // rule here - possibly whole un-captured houses too) go to whichever team
+  // last captured something this deal.
+  const remaining = [...state.floor.loose, ...state.floor.houses.flatMap((h) => h.cards)];
+  if (remaining.length > 0 && state.lastCapturingTeam !== null) {
+    state.teams[state.lastCapturingTeam].capturedPiles.push(...remaining);
   }
+  state.floor.loose = [];
+  state.floor.houses = [];
   const teamScores: [number, number] = [0, 0];
   for (const team of state.teams) {
     let pts = team.capturedPiles.reduce((s, c) => s + scoreValue(c), 0);

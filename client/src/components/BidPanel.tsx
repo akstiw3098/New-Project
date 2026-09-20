@@ -12,7 +12,7 @@ export default function BidPanel({ values, onBid }: Props) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="panel"
-      style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', padding: 16, zIndex: 40 }}
+      style={{ margin: '0 auto 10px', padding: 14, maxWidth: 'fit-content' }}
     >
       <div style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 8, textAlign: 'center' }}>
         Your turn to bid &mdash; choose the value of the house you'll play for
