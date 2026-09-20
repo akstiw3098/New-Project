@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ack } from '../lib/socket';
 import { useGameStore } from '../store/game';
 import { Difficulty } from '../game/types';
 
@@ -9,31 +8,29 @@ const DIFFICULTIES: Difficulty[] = ['low', 'medium', 'high'];
 export default function Lobby() {
   const state = useGameStore((s) => s.state!);
   const seat = useGameStore((s) => s.seat!);
+  const isHost = useGameStore((s) => s.isHost);
+  const setSeatAction = useGameStore((s) => s.setSeat);
+  const startAction = useGameStore((s) => s.start);
   const setError = useGameStore((s) => s.setError);
   const error = useGameStore((s) => s.error);
   const [copied, setCopied] = useState(false);
-  const [starting, setStarting] = useState(false);
 
-  const isHost = seat === 0;
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${state.roomId}`;
 
-  async function setSeatBot(idx: number, isBot: boolean, difficulty?: Difficulty) {
+  function setSeatBot(idx: number, isBot: boolean, difficulty?: Difficulty) {
     try {
-      await ack('room:setSeat', { seat: idx, isBot, difficulty });
+      setSeatAction(idx, isBot, difficulty);
     } catch (e: any) {
       setError(e.message);
     }
   }
 
-  async function handleStart() {
-    setStarting(true);
+  function handleStart() {
     setError(null);
     try {
-      await ack('room:start', {});
+      startAction();
     } catch (e: any) {
       setError(e.message);
-    } finally {
-      setStarting(false);
     }
   }
 
@@ -130,11 +127,16 @@ export default function Lobby() {
           <div style={{ fontSize: 11.5, color: 'var(--ink-dim)', marginTop: 6 }}>
             Starting will auto-fill any empty seats with medium bots.
           </div>
+          {isHost && (
+            <div style={{ fontSize: 11.5, color: 'var(--gold)', marginTop: 6 }}>
+              You're hosting &mdash; keep this tab open while the game is in progress.
+            </div>
+          )}
         </div>
 
         {isHost ? (
-          <button className="btn btn-primary" style={{ width: '100%' }} disabled={starting} onClick={handleStart}>
-            {starting ? 'Starting...' : 'Start game'}
+          <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleStart}>
+            Start game
           </button>
         ) : (
           <div style={{ textAlign: 'center', color: 'var(--ink-dim)', fontSize: 13 }}>Waiting for the host to start&hellip;</div>

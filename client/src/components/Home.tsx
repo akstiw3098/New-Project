@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ack, getSocket } from '../lib/socket';
 import { useGameStore } from '../store/game';
 import { useSettings } from '../store/settings';
 import { getDeviceId } from '../lib/supabase';
@@ -12,49 +11,39 @@ function roomFromUrl(): string | null {
 
 export default function Home() {
   const { name, setName } = useSettings();
-  const setRoom = useGameStore((s) => s.setRoom);
+  const createRoom = useGameStore((s) => s.createRoom);
+  const joinRoom = useGameStore((s) => s.joinRoom);
   const setError = useGameStore((s) => s.setError);
   const error = useGameStore((s) => s.error);
+  const busy = useGameStore((s) => s.busy);
   const [joinCode, setJoinCode] = useState(roomFromUrl() ?? '');
   const [margin, setMargin] = useState(100);
-  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    getSocket();
-  }, []);
+  function syncUrl(roomId: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', roomId);
+    window.history.replaceState({}, '', url.toString());
+  }
 
   async function handleCreate() {
     if (!name.trim()) return setError('Enter your name first.');
-    setBusy(true);
-    setError(null);
     try {
-      const res: any = await ack('room:create', { name: name.trim(), deviceId: getDeviceId(), targetBaaziMargin: margin });
-      setRoom(res.roomId, res.seat, res.state);
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', res.roomId);
-      window.history.replaceState({}, '', url.toString());
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
+      await createRoom(name.trim(), getDeviceId(), margin);
+      const roomId = useGameStore.getState().roomId;
+      if (roomId) syncUrl(roomId);
+    } catch {
+      // error already set in store
     }
   }
 
   async function handleJoin() {
     if (!name.trim()) return setError('Enter your name first.');
     if (!joinCode.trim()) return setError('Enter a room code.');
-    setBusy(true);
-    setError(null);
     try {
-      const res: any = await ack('room:join', { roomId: joinCode.trim().toUpperCase(), name: name.trim(), deviceId: getDeviceId() });
-      setRoom(res.roomId, res.seat, res.state);
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', res.roomId);
-      window.history.replaceState({}, '', url.toString());
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
+      await joinRoom(joinCode.trim().toUpperCase(), name.trim(), getDeviceId());
+      syncUrl(joinCode.trim().toUpperCase());
+    } catch {
+      // error already set in store
     }
   }
 

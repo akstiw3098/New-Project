@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from '../store/game';
 import { useSettings, effectiveQuality } from '../store/settings';
-import { ack } from '../lib/socket';
+import { validBidsLocal, optionsForCardLocal } from '../game/localOptions';
 import PlayingCard from './PlayingCard';
 import Floor from './Floor';
 import BidPanel from './BidPanel';
@@ -14,12 +14,14 @@ import { BuildOption, Card, CaptureOption, PlayOption, ThrowOption, scoreValue }
 export default function Table() {
   const state = useGameStore((s) => s.state!);
   const seat = useGameStore((s) => s.seat!);
+  const bidAction = useGameStore((s) => s.bid);
+  const playAction = useGameStore((s) => s.play);
+  const continueDealAction = useGameStore((s) => s.continueDeal);
   const setError = useGameStore((s) => s.setError);
   const error = useGameStore((s) => s.error);
   const { quality, cardSkin } = useSettings();
   const highQuality = effectiveQuality(quality) === 'high';
 
-  const [bidValues, setBidValues] = useState<number[] | null>(null);
   const [picker, setPicker] = useState<{
     card: Card;
     captures: CaptureOption[];
@@ -32,32 +34,25 @@ export default function Table() {
   const isMyBid = state.phase === 'awaiting_bid' && state.bidderSeat === seat;
   const isMyTurn = (state.phase === 'playing' || state.phase === 'bidder_first_action') && state.turnSeat === seat;
 
-  useEffect(() => {
-    if (isMyBid) {
-      ack<{ ok: true; values: number[] }>('game:validBids', {}).then((r) => setBidValues(r.values)).catch(() => {});
-    } else {
-      setBidValues(null);
-    }
-  }, [isMyBid, state.dealNumber]);
+  const bidValues = isMyBid ? validBidsLocal(state) : null;
 
   async function handleBid(v: number) {
     try {
-      await ack('game:bid', { value: v });
-    } catch (e: any) {
-      setError(e.message);
+      await bidAction(v);
+    } catch {
+      // error already surfaced via store
     }
   }
 
-  async function handleCardClick(card: Card) {
+  function handleCardClick(card: Card) {
     if (!isMyTurn) return;
     setPendingCardId(card.id);
     try {
-      const res: any = await ack('game:optionsForCard', { cardId: card.id });
-      const { captures, builds, throwAllowed } = res.options;
+      const { captures, builds, throwAllowed } = optionsForCardLocal(state, seat, card.id);
       const total = captures.length + builds.length + (throwAllowed ? 1 : 0);
       if (total <= 1) {
         const option: PlayOption = captures[0] ?? builds[0] ?? { type: 'throw' };
-        await playOption(card.id, option);
+        playOption(card.id, option);
       } else {
         setPicker({ card, captures, builds, throwAllowed });
       }
@@ -70,18 +65,18 @@ export default function Table() {
 
   async function playOption(cardId: string, option: PlayOption) {
     try {
-      await ack('game:play', { cardId, option });
+      await playAction(cardId, option);
       setPicker(null);
-    } catch (e: any) {
-      setError(e.message);
+    } catch {
+      // error already surfaced via store
     }
   }
 
   async function handleContinueDeal() {
     try {
-      await ack('game:continueDeal', {});
-    } catch (e: any) {
-      // likely auto-continued already server-side; ignore
+      await continueDealAction();
+    } catch {
+      // likely auto-continued already by the host; ignore
     }
   }
 

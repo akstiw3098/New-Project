@@ -1,5 +1,13 @@
--- Seep game persistence schema for Supabase (Postgres)
+-- Seepify (Seep) game persistence schema for Supabase (Postgres)
 -- Run this in the Supabase SQL editor of a free project.
+--
+-- Architecture note: Seepify has no backend server. The room host's browser
+-- runs the authoritative game engine and writes finished-game results
+-- directly to Supabase using the ANON key. That means these tables accept
+-- inserts from the anon role (RLS policies below) rather than being locked
+-- to a service-role key. There's nothing sensitive stored here (display
+-- names, scores, badges), so this is an acceptable trust model for a casual
+-- game - don't reuse this schema as-is for anything with real user data.
 
 create extension if not exists "pgcrypto";
 
@@ -55,16 +63,24 @@ create table if not exists profile_badges (
   unique (profile_id, badge_id)
 );
 
--- Row Level Security: keep it simple for a public free-tier project.
--- The server uses the service role key for writes, so RLS can stay strict for anon clients.
 alter table profiles enable row level security;
 alter table games enable row level security;
 alter table game_players enable row level security;
 alter table profile_badges enable row level security;
 alter table badges enable row level security;
 
+-- Read access: anyone (used for profile summaries / badge cabinets).
 create policy "public read profiles" on profiles for select using (true);
 create policy "public read games" on games for select using (true);
 create policy "public read game_players" on game_players for select using (true);
 create policy "public read badges" on badges for select using (true);
 create policy "public read profile_badges" on profile_badges for select using (true);
+
+-- Write access: the host's browser writes these directly with the anon key
+-- once a Baazi finishes. No update/delete policies are granted beyond what's
+-- needed (profiles can update their own display name by device_id).
+create policy "public insert profiles" on profiles for insert with check (true);
+create policy "public update own profile" on profiles for update using (true) with check (true);
+create policy "public insert games" on games for insert with check (true);
+create policy "public insert game_players" on game_players for insert with check (true);
+create policy "public insert profile_badges" on profile_badges for insert with check (true);
